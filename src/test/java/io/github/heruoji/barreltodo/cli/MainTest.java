@@ -94,6 +94,35 @@ class MainTest {
     }
 
     @Test
+    void handle_addWithQuotedTitleAndDescription_allowsSpaces(@TempDir Path tempDir) {
+        try (BarrelKv db = new BarrelKv(tempDir, Long.MAX_VALUE)) {
+            TodoRepository repository = new TodoRepository(db);
+            String output = captureStdout(() -> Main.handle(repository, "add \"Buy milk\" \"2% or whole\" - HIGH"));
+            assertTrue(output.contains("OK (id=1)"));
+            assertTrue(repository.find(1).orElseThrow().title().equals("Buy milk"));
+            assertTrue(repository.find(1).orElseThrow().description().equals("2% or whole"));
+        }
+    }
+
+    @Test
+    void handle_addWithEscapedQuoteInsideQuotedArg_unescapesIt(@TempDir Path tempDir) {
+        try (BarrelKv db = new BarrelKv(tempDir, Long.MAX_VALUE)) {
+            TodoRepository repository = new TodoRepository(db);
+            captureStdout(() -> Main.handle(repository, "add \"Say \\\"hi\\\"\""));
+            assertTrue(repository.find(1).orElseThrow().title().equals("Say \"hi\""));
+        }
+    }
+
+    @Test
+    void handle_addWithUnterminatedQuote_printsError(@TempDir Path tempDir) {
+        try (BarrelKv db = new BarrelKv(tempDir, Long.MAX_VALUE)) {
+            TodoRepository repository = new TodoRepository(db);
+            String output = captureStdout(() -> Main.handle(repository, "add \"Buy milk"));
+            assertTrue(output.contains("unterminated quote"));
+        }
+    }
+
+    @Test
     void handle_unknownCommand_printsUnknownCommandMessage(@TempDir Path tempDir) {
         try (BarrelKv db = new BarrelKv(tempDir, Long.MAX_VALUE)) {
             TodoRepository repository = new TodoRepository(db);

@@ -12,6 +12,8 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.time.LocalDate;
 import java.time.format.DateTimeParseException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 
@@ -45,10 +47,17 @@ public final class Main {
     }
 
     static void handle(TodoRepository repository, String line) {
-        if (line.isEmpty()) {
+        if (line.isBlank()) {
             return;
         }
-        String[] parts = line.split("\\s+", 5);
+        List<String> tokens;
+        try {
+            tokens = tokenize(line);
+        } catch (IllegalArgumentException e) {
+            System.out.println(e.getMessage());
+            return;
+        }
+        String[] parts = tokens.toArray(String[]::new);
         switch (parts[0]) {
             case "add" -> handleAdd(repository, parts);
             case "list" -> handleList(repository);
@@ -63,7 +72,8 @@ public final class Main {
 
     private static void handleAdd(TodoRepository repository, String[] parts) {
         if (parts.length < 2) {
-            System.out.println("usage: add <title> [description|-] [dueDate|-] [priority|-]");
+            System.out.println("usage: add <title> [description|-] [dueDate|-] [priority|-] "
+                    + "(wrap multi-word values in double quotes)");
             return;
         }
         String title = parts[1];
@@ -162,6 +172,55 @@ public final class Main {
         }
     }
 
+    /**
+     * Splits a command line into tokens, honoring double-quoted spans (so title/description can
+     * contain spaces). Inside quotes, {@code \"} and {@code \\} are unescaped to a literal
+     * character; everything else is copied verbatim.
+     */
+    private static List<String> tokenize(String line) {
+        List<String> tokens = new ArrayList<>();
+        int i = 0;
+        int length = line.length();
+        while (i < length) {
+            while (i < length && Character.isWhitespace(line.charAt(i))) {
+                i++;
+            }
+            if (i >= length) {
+                break;
+            }
+            StringBuilder token = new StringBuilder();
+            if (line.charAt(i) == '"') {
+                i++;
+                boolean closed = false;
+                while (i < length) {
+                    char c = line.charAt(i);
+                    if (c == '"') {
+                        closed = true;
+                        i++;
+                        break;
+                    }
+                    if (c == '\\' && i + 1 < length && (line.charAt(i + 1) == '"' || line.charAt(i + 1) == '\\')) {
+                        token.append(line.charAt(i + 1));
+                        i += 2;
+                    } else {
+                        token.append(c);
+                        i++;
+                    }
+                }
+                if (!closed) {
+                    throw new IllegalArgumentException("unterminated quote");
+                }
+            } else {
+                while (i < length && !Character.isWhitespace(line.charAt(i))) {
+                    token.append(line.charAt(i));
+                    i++;
+                }
+            }
+            tokens.add(token.toString());
+        }
+        return tokens;
+    }
+
     private static String optionalArg(String[] parts, int index) {
         if (parts.length <= index || parts[index].equals(OMIT)) {
             return null;
@@ -172,5 +231,7 @@ public final class Main {
     private static void printHelp() {
         System.out.println("commands: add <title> [description|-] [dueDate|-] [priority|-] | list | done <id> "
                 + "| undone <id> | delete <id> | show <id> | help | exit");
+        System.out.println("tip: wrap title/description in double quotes to include spaces, e.g. "
+                + "add \"Buy milk\" \"2% or whole\" - HIGH");
     }
 }
