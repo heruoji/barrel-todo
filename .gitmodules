@@ -1,0 +1,3 @@
+[submodule "barrelkv"]
+	path = barrelkv
+	url = git@github.com:heruoji/barrelkv.git
